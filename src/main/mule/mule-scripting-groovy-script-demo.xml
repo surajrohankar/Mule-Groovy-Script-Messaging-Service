@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:jms="http://www.mulesoft.org/schema/mule/jms"
+	xmlns:scripting="http://www.mulesoft.org/schema/mule/scripting"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/scripting http://www.mulesoft.org/schema/mule/scripting/current/mule-scripting.xsd
+http://www.mulesoft.org/schema/mule/jms http://www.mulesoft.org/schema/mule/jms/current/mule-jms.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<scripting:config name="Scripting_Config" doc:name="Scripting Config" doc:id="8dc006a8-60ff-4871-a1a7-4df702e974eb" />
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="1ca8cc4b-9caa-4aee-b4e4-37babf9c4c54" >
+		<http:listener-connection host="0.0.0.0" port="${httpListener.port}" />
+	</http:listener-config>
+	<jms:config name="JMS_Config" doc:name="JMS Config" doc:id="c3d75bc6-0188-4973-b3d2-b33d886905b8" >
+		<jms:active-mq-connection >
+			<jms:factory-configuration brokerUrl="tcp://localhost:61616" />
+		</jms:active-mq-connection>
+	</jms:config>
+	<configuration-properties doc:name="Configuration properties" doc:id="c1543be7-4922-4b8e-acd2-da65c6a00b02" file="scriptingConfig.yaml" />
+	<flow name="publish-to-queueFlow" doc:id="d4396836-3682-4825-a17c-ccf9faa571e1" >
+		<http:listener doc:name="8081/publish" doc:id="a9122105-8470-4513-9034-67401ca2b47b" config-ref="HTTP_Listener_config" path="${httpListener.publishPath}"/>
+		<scripting:execute engine="Groovy" doc:name="Execute" doc:id="ee5b07f3-e8fa-4f12-b66f-9e9a6b895ed6" >
+			<scripting:code ><![CDATA[${file::iterationScript.groovy}]]></scripting:code>
+		</scripting:execute>
+		<foreach doc:name="For Each" doc:id="a54fe11e-7ea4-4426-83a6-b7317f924896" >
+			<parse-template doc:name="Data Read from CSV File" doc:id="01c9a80d-98d1-4b68-a643-fa4b3e8c8c2c" location="message.csv" />
+			<ee:transform doc:name="JSON Payload" doc:id="4f502e6e-260e-4aab-b28e-316932a7a75d">
+				<ee:message>
+					<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+				</ee:message>
+			</ee:transform>
+			<jms:publish doc:id="b55747cf-e6ff-41ae-b8dd-2daf61ab6056" config-ref="JMS_Config" destination="${jms.queue}" doc:name="ScriptingQueue" destinationType="TOPIC"/>
+		</foreach>
+		<logger level="INFO" doc:name="Successfully Published!" doc:id="73a5775d-f275-4b83-858e-c637b24d9b8d" message='#["Successfully Published!"]'/>
+	</flow>
+	<flow name="consume-from-queueFlow" doc:id="10ba2091-246e-4295-b11a-11cab4545228" >
+		<http:listener doc:name="8081/consume" doc:id="fa9715c6-fac9-453f-a32e-394e32795c67" config-ref="HTTP_Listener_config" path="${httpListener.consumePath}"/>
+		<jms:consume doc:name="ScriptingQueue" doc:id="dc669b13-1195-4186-b40d-de39e5130324" config-ref="JMS_Config" destination="${jms.queue}" ackMode="IMMEDIATE">
+			<jms:consumer-type >
+				<jms:queue-consumer />
+			</jms:consumer-type>
+		</jms:consume>
+		<logger level="INFO" doc:name="Successfully Consumed!" doc:id="38ff012c-33f8-4347-96bb-148c73241bca" message='#["Successfully Consumed!"]'/>
+	</flow>
+</mule>

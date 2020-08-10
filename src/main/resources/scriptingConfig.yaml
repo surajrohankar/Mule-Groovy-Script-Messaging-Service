@@ -1,0 +1,7 @@
+httpListener:
+  port: "8081"
+  publishPath: "publish"
+  consumePath: "consume"
+  
+jms:
+  queue: "ScriptingQueue"
